@@ -45,12 +45,13 @@ def acceptable(data):
         return True
 
 
+
 def find_parent(pid):
     try:
         sql = "SELECT comment FROM parent_reply WHERE comment_id = '{}' LIMIT 1".format(pid)
         c.execute(sql)
         result = c.fetchone()
-        if result is not None:
+        if result:
             return result[0]
         else:
             return False
@@ -121,7 +122,7 @@ def sql_insert_has_parent(commentid,parentid,parent,comment,subreddit,time,score
         print('s0-PARENT insertion', str(e))
 
 
-def sql_insert_no_parent(commentid, parentid,comment,subreddit,time,score):
+def sql_insert_no_parent(commentid,parentid,comment,subreddit,time,score):
     try:
         sql = """INSERT INTO
         parent_reply 
@@ -152,8 +153,8 @@ if __name__ == "__main__":
         for row in f:
             row_counter += 1
             row = json.loads(row)
-            comment_id = row['name']
-            parent_id = row['parent_id']
+            comment_id = row['id']
+            parent_id = row['parent_id'].split('_')[1]
             body = format_data(row['body'])
             created_utc = row['created_utc']
             score = row['score']
@@ -161,10 +162,10 @@ if __name__ == "__main__":
             parent_data = find_parent(parent_id)
 
             if score >= 2:
-                if acceptable(body):
-                    existing_comment_score = find_existing_score(parent_id)
-                    if existing_comment_score:
-                        if score > existing_comment_score:
+                existing_comment_score = find_existing_score(parent_id)
+                if existing_comment_score:
+                    if score > existing_comment_score:
+                        if acceptable(body):
                             sql_insert_replace_comment(comment_id,
                                                        parent_id,
                                                        parent_data,
@@ -173,8 +174,9 @@ if __name__ == "__main__":
                                                        created_utc,
                                                        score)
 
-                    else:
-                        if parent_data:
+                else:
+                    if acceptable(body):
+                        if parent_data is not None:
                             sql_insert_has_parent(comment_id,
                                                   parent_id,
                                                   parent_data,
@@ -182,6 +184,7 @@ if __name__ == "__main__":
                                                   subreddit,
                                                   created_utc,
                                                   score)
+                            paired_rows += 1
                         else:
                             sql_insert_no_parent(comment_id,
                                                  parent_id,
